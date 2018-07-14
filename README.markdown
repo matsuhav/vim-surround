@@ -1,3 +1,44 @@
+# This is a fork of tpope/surround.vim and kana/surround.vim
+
+kana's fork of surround.vim [surround.vim](https://github.com/kana/vim-surround)
+adds more customizablility.
+
+I wanted up-to-date version of it and merged with tpope's
+[surround.vim](https://github.com/tpope/vim-surround).
+I changed nothing. All are thanks to the two great plugins.
+
+Currently, based on version 2.1 (2018-7-15)
+
+## Install
+
+Since plugin name is the same as the originals',  please install this after
+you delete originals completely.
+
+## Examples
+
+    call SurroundRegister('g', 'Ra', ">\r<")
+
+adds global two-char-operator to surround text with ">" and "<".
+See `:h SurroundRegister` and `:h ftplugin` for per filetype settings.
+
+You can use `for` in your vimrc to add rules like this.
+
+    let s:surroundlist = [
+        \ ['g', 'Ra', ">\r<"],
+        \ ['g', 'R3a', ">>>\r<<<"],
+        \ ['g', 'mk', "「\r」"],
+        \ ['g', 'mn', "『\r』"],
+        \ ['g', 'mb', "（\r）"],
+        \ ['g', 'ms', "【\r】"],]
+    for s:surr in s:surroundlist
+      call SurroundRegister(s:surr[0], s:surr[1], s:surr[2])
+    endfor
+
+If you use Vim8 built-in plugin manager, you need to put `packloadall`
+before calling this function. `:h packloadall`.
+
+Original README is here.
+
 # surround.vim
 
 Surround.vim is all about "surroundings": parentheses, brackets, quotes,

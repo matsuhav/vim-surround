@@ -18,30 +18,69 @@ function! s:getchar()
   return c
 endfunction
 
-function! s:inputtarget()
-  let c = s:getchar()
-  while c =~ '^\d\+$'
-    let c .= s:getchar()
-  endwhile
-  if c == " "
-    let c .= s:getchar()
+let s:OBJS_BUILTIN = '"()<>BW`bpstw{}''[]'
+let s:OBJS_DELETION = '/'
+let s:OBJS_ADDITION = "T\<C-t>,l\\fF\<C-[>\<C-]>"
+let s:RE_A_OBJS = '\V\^\[' . escape(s:OBJS_BUILTIN.s:OBJS_ADDITION, '\') . '\]'
+let s:RE_D_OBJS = '\V\^\[' . escape(s:OBJS_BUILTIN.s:OBJS_DELETION, '\') . '\]'
+
+function! s:inputtarget(...)
+  let space_prefixed_p = a:0 ? a:1 : s:FALSE
+  let cnt = ''
+  " get count part
+  if !space_prefixed_p
+    let c = s:getchar()
+    while c =~ '\d'
+      let cnt = cnt . c
+      let c = s:getchar()
+    endwhile
   endif
-  if c =~ "\<Esc>\|\<C-C>\|\0"
-    return ""
+  " check user-defined objects
+  let [success_p, keyseq] = s:user_obj_input(c)
+  if success_p
+    return cnt . keyseq
+  endif
+  " other works
+    " FIXME: User-defined objects with keys prefixed by a whitespace.
+  if (!space_prefixed_p) && keyseq == ' '
+    let keyseq = s:inputtarget(s:TRUE)
+    if keyseq == ''
+      return ''
+    else
+      " return cnt . ' ' . keyseq  " the original doesn't accept count
+      return ' ' . keyseq
+    endif
+  endif
+  if (keyseq =~ "[\<Esc>\<C-c>\0]"
+  \   || (1 < len(keyseq) && keyseq !~# s:RE_D_OBJS))
+    return ''
   else
-    return c
+    return cnt . keyseq
   endif
 endfunction
 
-function! s:inputreplacement()
-  let c = s:getchar()
-  if c == " "
-    let c .= s:getchar()
+function! s:inputreplacement(...)
+  let space_prefixed_p = a:0 ? a:1 : s:FALSE
+  let keyseq = ''
+  " check user-defined objects
+  let [success_p, keyseq] = s:user_obj_input('')
+  if success_p
+    return keyseq
   endif
-  if c =~ "\<Esc>" || c =~ "\<C-C>"
-    return ""
+  " other works
+  if (!space_prefixed_p) && keyseq == ' '
+    let keyseq = s:inputreplacement(s:TRUE)
+    if keyseq == ''
+      return ''
+    else
+      return ' ' . keyseq
+    endif
+  endif
+  if (keyseq =~ "[\<Esc>\<C-c>\0]"
+  \   || (1 < len(keyseq) && keyseq !~# s:RE_A_OBJS))
+    return ''
   else
-    return c
+    return keyseq
   endif
 endfunction
 
@@ -144,15 +183,12 @@ function! s:wrap(string,char,type,removed,special)
     let extraspace = ' '
   endif
   let idx = stridx(pairs,newchar)
+  let user_defined_object = s:user_obj_value(newchar)
   if newchar == ' '
     let before = ''
     let after  = ''
-  elseif exists("b:surround_".char2nr(newchar))
-    let all    = s:process(b:surround_{char2nr(newchar)})
-    let before = s:extractbefore(all)
-    let after  =  s:extractafter(all)
-  elseif exists("g:surround_".char2nr(newchar))
-    let all    = s:process(g:surround_{char2nr(newchar)})
+  elseif len(user_defined_object)
+    let all    = s:process(user_defined_object)
     let before = s:extractbefore(all)
     let after  =  s:extractafter(all)
   elseif newchar ==# "p"
@@ -170,7 +206,7 @@ function! s:wrap(string,char,type,removed,special)
     if !maparg(">","c")
       let dounmapb = 1
       " Hide from AsNeeded
-      exe "cn"."oremap > ><CR>"
+      exe "cn"."oremap <buffer> > ><CR>"
     endif
     let default = ""
     if newchar ==# "T"
@@ -180,8 +216,9 @@ function! s:wrap(string,char,type,removed,special)
       let default = matchstr(s:lastdel,'<\zs.\{-\}\ze>')
     endif
     let tag = input("<",default)
+    echo "<".substitute(tag,'>*$','>','')
     if dounmapb
-      silent! cunmap >
+      silent! cunmap <buffer>  >
     endif
     let s:input = tag
     if tag != ""
@@ -353,6 +390,8 @@ function! s:reindent() " {{{1
 endfunction " }}}1
 
 function! s:dosurround(...) " {{{1
+  " ([target-surrounding-object-char, [new-surrounding-object-char]])
+  " adjust arguments  "{{{3
   let scount = v:count1
   let char = (a:0 ? a:1 : s:inputtarget())
   let spc = ""
@@ -383,8 +422,18 @@ function! s:dosurround(...) " {{{1
   let original = getreg('"')
   let otype = getregtype('"')
   call setreg('"',"")
+  " move the target text range into @@, then delete surroudings  "{{{3
   let strcount = (scount == 1 ? "" : scount)
-  if char == '/'
+  let user_defined_object = s:user_obj_value(char)
+  if len(user_defined_object)  " FIXME: [count] is not supported yet
+    let all = s:process(user_defined_object)
+    let before = s:extractbefore(all)
+    let after = s:extractafter(all)
+    call s:search_literally(before, 'bcW')
+    normal! v
+    call s:search_literally(after, 'ceW')
+    normal! d
+  elseif char == '/'
     exe 'norm! '.strcount.'[/d'.strcount.']/'
   elseif char =~# '[[:punct:][:space:]]' && char !~# '[][(){}<>"''`]'
     exe 'norm! T'.char
@@ -404,7 +453,11 @@ function! s:dosurround(...) " {{{1
   endif
   let oldline = getline('.')
   let oldlnum = line('.')
-  if char ==# "p"
+  if len(user_defined_object)
+    call setreg('"', before.after, '')
+    let keeper = keeper[len(before):]
+    let keeper = keeper[:-(len(after)+1)]
+  elseif char ==# "p"
     call setreg('"','','V')
   elseif char ==# "s" || char ==# "w" || char ==# "W"
     " Do nothing
@@ -444,11 +497,13 @@ function! s:dosurround(...) " {{{1
   if line('.') + 1 < oldlnum && regtype ==# "V"
     let pcmd = "p"
   endif
+  " surround @@ new objects "{{{3
   call setreg('"',keeper,regtype)
   if newchar != ""
     let special = a:0 > 2 ? a:3 : 0
     call s:wrapreg('"',newchar,removed,special)
   endif
+  " put the result into the original position, then reindent "{{{3
   silent exe 'norm! ""'.pcmd.'`['
   if removed =~ '\n' || okeeper =~ '\n' || getreg('"') =~ '\n'
     call s:reindent()
@@ -568,6 +623,220 @@ function! s:closematch(str) " {{{1
     return ""
   endif
 endfunction " }}}1
+
+" Trie  "{{{2
+"
+" trie ::= {'root': node,
+"           'default_value': <any value>}
+" default-value ::= <any value>
+" node ::= {'value': <any value>,
+"           'children': {<a part of key (1 char)>: node,
+"                        ...}}
+
+let s:trie = {}
+let s:FALSE = 0
+let s:TRUE = !s:FALSE
+
+function! s:trie.new(default_value)  "{{{3
+  let new_instance = copy(s:trie)
+  let new_instance.root = s:trie.node.new(a:default_value)
+  let new_instance.default_value = a:default_value
+  return new_instance
+endfunction
+
+function! s:trie.dump()  "{{{3
+  echomsg 'Trie:'
+  echomsg '  default_value:' string(self.default_value)
+  call self.root.dump('root', 1)
+endfunction
+
+function! s:trie.put(sequence, value)  "{{{3
+  let node = self.root
+  let i = 0
+  while i < len(a:sequence)
+    let item = a:sequence[i]
+    if !has_key(node.children, item)
+      let node.children[item] = s:trie.node.new(self.default_value)
+    endif
+    let node = node.children[item]
+    let i = i + 1
+  endwhile
+  let old_value = node.value
+  let node.value = a:value
+  return old_value
+endfunction
+
+function! s:trie.get(sequence, accept_halfway_matchp, ...)  "{{{3
+  let default_value = a:0 ? a:1 : self.default_value
+  let node = self.root
+  let i = 0
+  while i < len(a:sequence)
+    let item = a:sequence[i]
+    if !has_key(node.children, item)
+      return default_value
+    endif
+    let node = node.children[item]
+    let i = i + 1
+  endwhile
+
+  if node.leafp() || a:accept_halfway_matchp
+    return node.value
+  else
+    return default_value
+  endif
+endfunction
+
+function! s:trie.take(sequence)  "{{{3
+  if len(a:sequence) == 0
+    throw 'empty sequence is not allowed'
+  endif
+  let parent = self.root
+  let node = self.root
+  let i = 0
+  while i < len(a:sequence)
+    let item = a:sequence[i]
+    if !has_key(node.children, item)
+      throw 'value corresponding to the given sequence is not found'
+    endif
+    let parent = node
+    let node = node.children[item]
+    let i = i + 1
+  endwhile
+  return remove(parent.children, item).value
+endfunction
+
+function! s:trie.get_incremental(accept_halfway_matchp, ...)  "{{{3
+  let state = {}
+  let state.accept_halfway_matchp = a:accept_halfway_matchp
+  let state.default_value = a:0 ? a:1 : self.default_value
+  let state.node = self.root
+  let state.i = 0
+
+  function state.feed(item)
+    if !has_key(self.node.children, a:item)
+      return [s:trie.FAILED, self.default_value]
+    endif
+    let self.node = self.node.children[a:item]
+    let self.i = self.i + 1
+
+    if self.node.leafp() || self.accept_halfway_matchp
+      return [s:trie.MATCHED, self.node.value]
+    else
+      return [s:trie.CONTINUED, self.default_value]
+    endif
+  endfunction
+
+  return state
+endfunction
+
+let s:trie.CONTINUED = ['CONTINUED']
+let s:trie.FAILED = ['FAILED']
+let s:trie.MATCHED = ['MATCHED']
+
+let s:trie.node = {}  "{{{3
+
+function! s:trie.node.new(value)
+  let new_instance = copy(s:trie.node)
+  let new_instance.value = a:value
+  let new_instance.children = {}
+  return new_instance
+endfunction
+
+function! s:trie.node.leafp()
+  return len(self.children) == 0
+endfunction
+
+function! s:trie.node.dump(label, lv)
+  echomsg s:indent(a:lv) string(a:label) ':' string(self.value)
+  for key in sort(keys(self.children))
+    call self.children[key].dump(key, a:lv+1)
+  endfor
+endfunction
+
+" User-defined surrounding objects  "{{{2
+function! s:user_obj_trie(type)
+  if a:type ==# 'b'
+    if !exists('b:surround_objects')
+      let b:surround_objects = s:trie.new('')
+    endif
+    return b:surround_objects
+  else  " a:type ==# 'g'
+    if !exists('g:surround_objects')
+      let g:surround_objects = s:trie.new('')
+    endif
+    return g:surround_objects
+  endif
+endfunction
+
+function! SurroundRegister(type, key, template)
+  return s:user_obj_trie(a:type).put(a:key, a:template)
+endfunction
+
+function! SurroundUnregister(type, key)
+  return s:user_obj_trie(a:type).take(a:key)
+endfunction
+
+function! s:user_obj_input(lookahead_c)
+  let [result, key] = s:user_obj_input_sub('b', a:lookahead_c)
+  if result is s:trie.FAILED
+    let [result, key] = s:user_obj_input_sub('g', key)
+    if result is s:trie.FAILED
+      return [s:FALSE, key]
+    endif
+  endif
+
+  return [s:TRUE, key]
+endfunction
+
+function! s:user_obj_input_sub(type, lookahead_s)
+  let state = s:user_obj_trie(a:type).get_incremental(s:FALSE, 'not-used')
+  let key = ''
+  let i = 0
+  while 1
+    if i < len(a:lookahead_s)
+      let c = a:lookahead_s[i]
+      let i += 1
+    else
+      let c = s:getchar()
+    endif
+    let [result, _] = state.feed(c)
+    let key = key . c
+    if result is s:trie.MATCHED
+      break
+    elseif result is s:trie.FAILED
+      break
+    else  " result is s:trie.CONTINUED
+      " NOP
+    endif
+  endwhile
+  return [result, key]
+endfunction
+
+function! s:user_obj_value(key)
+  let Template = s:user_obj_trie('b').get(a:key, s:FALSE, '')
+  if Template == ''
+    let Template = s:user_obj_trie('g').get(a:key, s:FALSE, '')
+  endif
+
+  if type(Template) == type('string')
+    return Template
+  else  " function?
+    return Template()
+  endif
+endfunction
+
+" Misc. functions  "{{{2
+function! s:search_literally(pattern, flags)
+  return search(s:literalize_pattern(a:pattern), a:flags)
+endfunction
+
+function! s:literalize_pattern(pattern)
+  return '\V'.substitute(a:pattern, '\', '\\', 'g')
+endfunction
+
+function! s:indent(level)
+  return repeat('  ', a:level)[1:]
+endfunction
 
 nnoremap <silent> <Plug>SurroundRepeat .
 nnoremap <silent> <Plug>Dsurround  :<C-U>call <SID>dosurround(<SID>inputtarget())<CR>
