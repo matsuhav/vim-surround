@@ -1,198 +1,186 @@
-*surround.txt*  Plugin for deleting, changing, and adding "surroundings"
+*surround.txt* Plugin for manipulating surroundings
 
-OriginalAuthor:  Tim Pope <vimNOSPAM@tpope.info>        *surround-author*
+OriginalAuthor: Tim Pope
 Author: matsuhav
 License: Same terms as Vim itself (see |license|)
 
-This plugin is only available if 'compatible' is not set.
+INTRODUCTION							*surround*
 
-INTRODUCTION                                    *surround*
+This plugin provide a commands to manipulate surroundings like |text-objects|.
+surround.
+Examples: * is cursor position:
+	Old text		Command		New text ~
+	"Hello *world!"		ds"		Hello world!
+	[123+4*56]/2		cs])		(123+456)/2
+	"Look ma, I'm *HTML!"	cs"tq>		<q>Look ma, I'm HTML!</q>
+	if *x>3 {		ysW(		if ( x>3 ) {
+	my $str = *whee!;	vllllS'		my $str = 'whee!';
+	<a attr>tag</a>		csTtb		<b attr>tag</b>
+	func(a*rgs)		dsf		args
 
-This plugin is a tool for dealing with pairs of "surroundings."  Examples
-of surroundings include parentheses, quotes, and HTML tags.  They are
-closely related to what Vim refers to as |text-objects|.  Provided
-are mappings to allow for removing, changing, and adding surroundings.
+The difference from original is that you can |ds| and |cs| |surround-target|.
+`dsf` in above example is not possible with original. And you can use more
+then one charactor to specify |surround-target|.
 
-Details follow on the exact semantics, but first, consider the following
-examples.  An asterisk (*) is used to denote the cursor position.
+MAPPINGS						*surround-mappings*
 
-  Old text                  Command     New text ~
-  "Hello *world!"           ds"         Hello world!
-  [123+4*56]/2              cs])        (123+456)/2
-  "Look ma, I'm *HTML!"     cs"tq>      <q>Look ma, I'm HTML!</q>
-  if *x>3 {                 ysW(        if ( x>3 ) {
-  my $str = *whee!;         vllllS'     my $str = 'whee!';
+Normal mode mappings: ~
+	*ds* is "Delete surroundings" ,
+	*cs* is "Change surroundings",
+	*ys* is "Surround region specified by |motion|",
+	*yss* is "Surround a line"
+	And *cS* , *yS* , *ySs* and *ySS* put the surrounded result as an
+	independent line.
 
-MAPPINGS                                        *surround-mappings*
+Visual mode mappings: ~
+	*S* is "Surround region"
+	And *gS*  put surrounded result as an independent line.
 
-Delete surroundings is *ds* .  The next character given determines the target
-to delete.  The exact nature of the target is explained in |surround-targets|
-but essentially it is the last character of a |text-object|.  This mapping
-deletes the difference between the "i"nner object and "a"n object.  This is
-easiest to understand with some examples:
+SYNTAX				*surround-target* *surround-replacement*
+				*{surround-target}* *{surround-replacement}*
 
-  Old text                  Command     New text ~
-  "Hello *world!"           ds"         Hello world!
-  (123+4*56)/2              ds)         123+456/2
-  <div>Yo!*</div>           dst         Yo!
+Normal mode mappings: ~
+	|ds| {surround-target}
+	|cs| {surround-target} {surround-replacement}
+	|ys| {motion} {surround-replacement}
+	|yss| {surround-replacement}
+Visual mode mappings: ~
+	|S| {surround-replacement}
 
-Change surroundings is *cs* .  It takes two arguments, a target like with
-|ds|, and a replacement.  *cS* changes surroundings, placing the surrounded
-text on its own line(s) like |yS|.  Details about the second argument can be
-found below in |surround-replacements|.  Once again, examples are in order.
+CUSTOMIZING			*surround-customizing* *surround-variables*
 
-  Old text                  Command     New text ~
-  "Hello *world!"           cs"'        'Hello world!'
-  "Hello *world!"           cs"<q>      <q>Hello world!</q>
-  (123+4*56)/2              cs)]        [123+456]/2
-  (123+4*56)/2              cs)[        [ 123+456 ]/2
-  <div>Yo!*</div>           cst<p>      <p>Yo!</p>
+g:surround_enable_default_dict		*g:surround_enable_default_dict*
+	Set 0 to disable default surroundings.
 
-*ys* takes a valid Vim motion or text object as the first object, and wraps
-it using the second argument as with |cs|.  (It's a stretch, but a good
-mnemonic for "ys" is "you surround".)
+g:surround_dict b:surround_dict		*g:surround_dict* *b:surround_dict*
+	Add surroundings global or buffer-local.
+	For example, default dict is >
+	let s:surround_dict_default = {
+			\ '  ': ' \r ',
+			\ 'b': '(\r)',
+			\ '(': '( \r )',
+			\ ')': '(\r)',
+			\ 'B': '{\r}',
+			\ ' B': ' {\r}',
+			\ '{': '{ \r }',
+			\ '}': '{\r}',
+			\ 'a': '<\r>',
+			\ '<': '< \r >',
+			\ '>': '<\r>',
+			\ 'A': '[\r]',
+			\ '[': '[ \r ]',
+			\ ']': '[\r]',
+			\ '''': '''\r''',
+			\ '"': '"\r"',
+			\ ',': ',\r,',
+			\ 'p': '\n\r\n\n',
+			\ '': '{\n\t\r\n}',
+			\ 't': '<\1>\r</\1>',
+			\ 'T': '<\1 \r</\1>',
+			\ 'l': '\\begin{\1}\r\\end{\1}',
+			\ '\': '\\begin{\1}\r\\end{\1}',
+			\ 'f': '\1(\r)',
+			\ 'F': '\1( \r )',
+			\ 'Ra': '>\r<',
+			\ '|': '|\r|',
+			\ 's': '\\\r\\',
+			\ ':': ':\r:',
+			\ '`': '`\r`',
+			\ '*': '*\r*',
+			\ }
+<
+	And I added these to my vimrc to perform multibyte surroundings: >
+	let g:surround_dict = {
+			\ 'mk': '「\r」',
+			\ 'mn': '『\r』',
+			\ 'mb': '（\r）',
+			\ 'ms': '【\r】',
+			\ 'ma': '［\r］',
+			\ }
+<
+	"\r" indicates the surrounded text.
+	You have to use two backslash to express a backslash.
+	You can include newline and tab with \n and \t.
+	"\1" will be replaced with your input when it appeared in
+	|surround-replacement|. When used in |surround-target|, it is replaced
+	with |keyword| regexp. >
 
-  Old text                  Command     New text ~
-  Hello w*orld!             ysiw)       Hello (world)!
+	You can add surroundings per filetype by using |ftplugin|.
+	Example: "~/.vim/ftplugin/text.vim"
+		`ysiWU` will surround a |WORD| with "https://" and "/" when
+		editing text file >
+		let b:surround_dict = {'U': 'https://\r/'}
 
-As a special case, *yss* operates on the current line, ignoring leading
-whitespace.
+g:surround_max_subexp				*g:surround_max_subexp*
+	The max number of "\1", "\2", ... used in |surround_dict|.
+	Default: 3
 
-  Old text                  Command     New text ~
-      Hello w*orld!         yssB            {Hello world!}
+g:surround_enable_default_cmap		*g:surround_enable_default_cmap*
+	Set 0 to disable default cmaps when you enter text for "\1"s.
 
-There is also *yS* and *ySS* which indent the surrounded text and place it
-on a line of its own.
+g:surround_cmap b:surround_cmap		*g:surround_cmap* *b:surround_cmap*
+	Add cmap when you input text. "key" is a key from |surround_dict|,
+	"value" is a dictionary which contains map-mapto pairs.
+	For example, default cmap is >
+	let s:surround_cmap_default = {
+			\ 't': {'>': ''},
+			\ 'l': {'}': ''},
+			\ '\': {'}': ''},
+			\ }
+<
+g:surround_enable_reindent b:surround_enable_reindent
+		*g:surround_enable_reindent* *b:surround_enable_reindent*
+	Set 0 to disable reindent after surround manipulation.
+	By default, reindent always happen. Reindentation is performed by |=|
+	and it shouldn't do harm. However, when you have your own indent
+	style, you may want to disable it.
+	It is good idea to enable for source code filetypes. `ds B` deletes
+	C-style block and reindentation will show us how scope changed.
+	if (ok) {
+		printf("Yes!\n");
+		printf("No?\n");
+	}
+	`ds B`
+	if (ok)
+		printf("Yes!\n");
+	printf("No?\n");
 
-In visual mode, a simple "S" with an argument wraps the selection.  This is
-referred to as the *vS* mapping, although ordinarily there will be
-additional keystrokes between the v and S.  In linewise visual mode, the
-surroundings are placed on separate lines and indented.  In blockwise visual
-mode, each line is surrounded.
+g:surround_putcursorafter b:surround_putcursorafter
+		*g:surround_putcursorafter* *b:surround_putcursorafter*
+	Set 1 to put cursor after the surrounded text.
+	Useful when you do search-and-edit loop.
 
-A "gS" in visual mode, known as *vgS* , behaves similarly.  In linewise visual
-mode, the automatic indenting is suppressed.  In blockwise visual mode, this
-enables surrounding past the end of the line with 'virtualedit' set (there
-seems to be no way in Vim Script to differentiate between a jagged end of line
-selection and a virtual block selected past the end of the line, so two maps
-were needed).
+g:surround_enable_default_mappings	*g:surround_enable_default_mappings*
+	Set 0 to disable default |ds|, |cs| and |ys| mappings.
+	You can still map any keys. See surround.vim and search
+	|g:surround_enable_default_mappings|.
 
-                                                *i_CTRL-G_s* *i_CTRL-G_S*
-Finally, there is an experimental insert mode mapping on <C-G>s and <C-S>.
-Beware that the latter won't work on terminals with flow control (if you
-accidentally freeze your terminal, use <C-Q> to unfreeze it).  The mapping
-inserts the specified surroundings and puts the cursor between them.  If,
-immediately after the mapping and before the replacement, a second <C-S> or
-carriage return is pressed, the prefix, cursor, and suffix will be placed on
-three separate lines.  <C-G>S (not <C-G>s) also exhibits this behavior.
+RECOMMENDATION						*surround-recommend*
+If you install tpope/vim-repeat <https://github.com/tpope/vim-repeat>, you can
+repeat normal mode surround with "dot" |.|.
 
-TARGETS                                         *surround-targets*
-
-The |ds| and |cs| commands both take a target as their first argument.  The
-possible targets are based closely on the |text-objects| provided by Vim.
-All targets are currently just one character.
-
-Eight punctuation marks, (, ), {, }, [, ], <, and >, represent themselves
-and their counterparts.  If the opening mark is used, contained whitespace is
-also trimmed.  The targets b, B, r, and a are aliases for ), }, ], and > 
-(the first two mirror Vim; the second two are completely arbitrary and
-subject to change).
-
-Three quote marks, ', ", `, represent themselves, in pairs.  They are only
-searched for on the current line.
-
-A t is a pair of HTML or XML tags.  See |tag-blocks| for details.  Remember
-that you can specify a numerical argument if you want to get to a tag other
-than the innermost one.
-
-The letters w, W, and s correspond to a |word|, a |WORD|, and a |sentence|,
-respectively.  These are special in that they have nothing to delete, and
-used with |ds| they are a no-op.  With |cs|, one could consider them a
-slight shortcut for ysi (cswb == ysiwb, more or less).
-
-A p represents a |paragraph|.  This behaves similarly to w, W, and s above;
-however, newlines are sometimes added and/or removed.
-
-REPLACEMENTS                                    *surround-replacements*
-
-A replacement argument is a single character, and is required by |cs|, |ys|,
-and |vS|.  Undefined replacement characters (with the exception of alphabetic
-characters) default to placing themselves at the beginning and end of the
-destination, which can be useful for characters like / and |.
-
-If either ), }, ], or > is used, the text is wrapped in the appropriate pair
-of characters.  Similar behavior can be found with (, {, and [ (but not <),
-which append an additional space to the inside.  Like with the targets above,
-b, B, r, and a are aliases for ), }, ], and >.  To fulfill the common need for
-code blocks in C-style languages, <C-}> (which is really <C-]>) adds braces on
-lines separate from the content.
-
-If t or < is used, Vim prompts for an HTML/XML tag to insert.  You may specify
-attributes here and they will be stripped from the closing tag. If replacing a
-tag, its attributes are kept in the new tag. End your input with > to discard
-the those attributes. If <C-T> is used, the tags will appear on lines by
-themselves.
-
-If s is used, a leading but not trailing space is added.  This is useful for
-removing parentheses from a function call with csbs.
-
-CUSTOMIZING                                     *surround-customizing*
-
-This plugin differs from original at this point. Write like below and edit
-newfile. Now you can use them. Alternatively, you can set them buffer local
-variable for per filetype settings.
-
->
-   let g:surround_dict = {'U': 'https://\r/',
-                        \ 'Vi': '\n\1m is \1 iMproved\n\r',
-                        \ }
+If you want to use |surround-target| for |ys|, you can use
+kana/vim-textobj-user <https://github.com/kana/vim-textobj-user>.
+For example, for my vimrc, >
+	let s:surround_textobj = {
+			\ 'surround-mk': {'pattern': ['「', '」'],
+			\ 		'select-a': 'amk', 'select-i': 'imk'},
+			\ 'surround-mn': {'pattern': ['『', '』'],
+			\ 		'select-a': 'amn', 'select-i': 'imn'},
+			\ 'surround-mb': {'pattern': ['（', '）'],
+			\ 		'select-a': 'amb', 'select-i': 'imb'},
+			\ 'surround-ms': {'pattern': ['【', '】'],
+			\ 		'select-a': 'ams', 'select-i': 'ims'},
+			\ 'surround-ma': {'pattern': ['［', '］'],
+			\ 		'select-a': 'ama', 'select-i': 'ima'},
+			\ }
+	silent! call textobj#user#plugin('surround', s:surround_textobj)
 <
 
-					*surrounding-customizing-difference*
-DIFFERENCE FROM THE ORIGINAL VERSION ~
+KNOWN PROBLEMS						*surround-issues*
 
-The original way - g:surround_{char2nr(key)} - is no longer supported.  Please
-use |SurroundRegister| and |SurroundUnregister| to register/unregister
-user-defined surrounding objects.
+You cannot install other surround.vim at the same time.
+Complex surround which the original has is not supported yet.
+Visual mode "dot" repeat doesn't work.
 
-Tips:
-	g:surround_{char2nr(key)} = template	~
-	b:surround_{char2nr(key)} = template	~
-and
-	call SurroundRegister('g', key, template)	~
-	call SurroundRegister('b', key, template)	~
-have same meaning.
-
-SurroundRegister({type}, {key}, {template})		*SurroundRegister*
-	Register new user-defined surrounding object.
-
-	{type}	('b' or 'g')
-		The scope of this object.
-		'b' means buffer-local and
-		'g' means global.
-
-	{key}	(string with 1 or more characters)
-		Key stroke for this object.
-
-	{template}
-		Template for this object.
-		See |surrounding-customizing| for the detail.
-
-SurroundUnregister({type}, {key})			*SurroundUnregister*
-	Unregister user-defined surrounding object corresponding to
-	the givin {key}.
-
-ISSUES                                          *surround-issues*
-
-Vim could potentially get confused when deleting/changing occurs at the very
-end of the line.  Please report any repeatable instances of this.
-
-Do we need to use |inputsave()|/|inputrestore()| with the tag replacement?
-
-Indenting is handled haphazardly.  Need to decide the most appropriate
-behavior and implement it.  Right now one can do :let b:surround_indent = 1
-(or the global equivalent) to enable automatic re-indenting by Vim via |=|;
-should this be the default?
-
-
- vim:tw=78:ts=8:ft=help:norl:
+ vim:tw=78:ts=8:noet:ft=help:norl:

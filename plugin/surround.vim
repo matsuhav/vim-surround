@@ -19,12 +19,12 @@ silent! unlet b:surround_dict_full
 " g:surround_max_subexp = 3 by default. to change max '\1's
 " cmap
 " g:surround_enable_default_cmap to disable default cmap
-" g:surround_cmap g:surround_cmap to add cmap
+" g:surround_cmap b:surround_cmap to add cmap
 " unlet b:surround_map_full to live changes to cmaps
 " indent
 " g:surround_enable_reindent b:surround_enable_reindent to disable reindent
 " cursor
-" g:surround_putcursorafter and b:surround_putcursorafter to put cursor after
+" g:surround_putcursorafter b:surround_putcursorafter to put cursor after
 " mapping
 " g:surround_enable_default_mappings to disable default mappings
 " recommendation
@@ -47,9 +47,9 @@ let s:surround_dict_default = {
 		\ 'a': '<\r>',
 		\ '<': '< \r >',
 		\ '>': '<\r>',
+		\ 'A': '[\r]',
 		\ '[': '[ \r ]',
 		\ ']': '[\r]',
-		\ 'A': '[\r]',
 		\ '''': '''\r''',
 		\ '"': '"\r"',
 		\ ',': ',\r,',
@@ -62,17 +62,12 @@ let s:surround_dict_default = {
 		\ 'f': '\1(\r)',
 		\ 'F': '\1( \r )',
 		\ 'Ra': '>\r<',
-		\ 'R': '|\r|',
-		\ 'Vi': '\n\1m is \1 iMproved\n\r',
-		\ 'Vim': '\n\1 is \2 iMproved\n\r',
-		\ 'mk': '「\r」',
-		\ 'mn': '『\r』',
-		\ 'mb': '（\r）',
-		\ 'ms': '【\r】',
+		\ '|': '|\r|',
 		\ 's': '\\\r\\',
 		\ 'd': '..\r..',
 		\ ':': ':\r:',
 		\ '`': '`\r`',
+		\ '*': '*\r*',
 		\ }
 
 " When it has '\1's, it maps during input(),
@@ -519,21 +514,6 @@ function! s:beep()
 	normal! "\<Esc>"
 	return ""
 endfunction
-
-if !exists('g:surround_enable_default_textobj') || g:surround_enable_default_textobj == 1
-	let surround_textobj = {}
-	for [key, value] in items(s:surround_dict_default)
-		if key =~# 'Ra\|mk\|mn\|mb\|ms'
-			let [before, after] = s:process_target(value)
-			let surround_textobj['surround' . key] = {
-					\ 'pattern': ['\V' . before, '\V' . after],
-					\ 'select-a': 'aS' . key,
-					\ 'select-i': 'iS' . key,
-					\ }
-		endif
-	endfor
-	silent! call textobj#user#plugin('surround', surround_textobj)
-endif
 
 
 nnoremap <silent> <Plug>SurroundRepeat		.

@@ -4,7 +4,7 @@ Yet another surround plugin for Vim.
 
 You can fully customize the surroundings.
 
-Mappings are partly derived from other surround plugin:
+Mappings are derived from other surround plugin:
 `tpope/vim-surround <https://github.com/tpope/vim-surround>`_,
 `kana/vim-surround <https://github.com/kana/vim-surround>`_.
 
@@ -23,13 +23,14 @@ See `:help packages <https://vimhelp.org/repeat.txt.html#packages>`_.
 
 Examples
 --------
-.. code-block: vim
+-  `ysiw<Space><Space>` will surround a word with spaces.
+-  `ysiwffunc` will surround a word with a function named func.
+-  `yssta>` will surround a line with <a> tag.
+-  `dsf` will delete a surrounding function.
+-  `2dsf` will delete the second outer surrounding function.
+-  `dsl` will delete a surrounding tex begin-end environment.
 
-   let g:surround_dict = {'U': 'https://\r/',
-                        \ 'Vi': '\n\1m is \1 iMproved\n\r',
-                        \ }
-
-See help for more information.
+See help for more information and settings.
 
 The `.` command will work if you install
 `repeat.vim <https://github.com/tpope/vim-repeat>`_.
